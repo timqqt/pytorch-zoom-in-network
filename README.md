@@ -16,6 +16,6 @@ torchvision == 0.7.0
 
 ## Examples
 
-
+## Acknowledgemennt
 ##### Thanks to the following repositories: 
 - https://github.com/idiap/attention-sampling.git
