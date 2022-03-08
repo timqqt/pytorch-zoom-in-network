@@ -13,3 +13,6 @@ colon_cancer.py is for running experiments of colon cancer. n_camelyon.py is for
 ## Major Dependencies
 pytorch-gpu == 1.6.0
 torchvision == 0.7.0 
+
+##### Thanks to the following repositories: 
+- https://github.com/idiap/attention-sampling.git
