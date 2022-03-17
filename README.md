@@ -1,3 +1,4 @@
+
 This repository is under construction.
 
 # Overview
@@ -18,6 +19,7 @@ torchvision == 0.7.0
 
 ## Training
 training on colon cancer dataset:
+
     python3 main.py
     
 ## Evaluation
