@@ -17,6 +17,9 @@ pytorch-gpu == 1.6.0
 torchvision == 0.7.0 
 
 ## Training
+training on colon cancer dataset:
+    python3 main.py
+    
 ## Evaluation
 
 ## Acknowledgemennt
