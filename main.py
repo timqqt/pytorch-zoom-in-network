@@ -4,7 +4,6 @@ Created on 2022-03-12
 '''
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import torch
 import os
 import time
 import torch
@@ -15,16 +14,24 @@ import numpy as np
 import pandas as pd
 from math import floor, sqrt
 from skimage.io import imsave
+import torch.nn as nn
 from torch.nn import functional as F
+from zoom_in.zoom_in import ZoomInNet
+from utils.dataset_utils import load_annotations
+from utils.utils import get_optim
+from utils.utils import save_checkpoint, load_checkpoint, save_metrics, load_metrics, get_activation
+
 from dataset.custom_dataset import CustomDataReader
-from dataset.colon_cancer_dataset import GigaPixelPatchwiseReader
+from dataset.colon_cancer_dataset import HistoPatchwiseReader
 
 from models.attention_models import Attention, AttentionOnAttention
 from models.feature_extractors import FeatureExtractor
 from models.classifier import Classifier
 
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+from train import train
+from eval import eval
 
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 
 def get_models(args):
@@ -43,8 +50,8 @@ def get_models(args):
         
     model = ZoomInNet(
          attention, aoa, fe, clf,
-         batch_size=batch_size,
-         frame_size= args.tile_size,
+         batch_size=args.batch_size,
+         tile_size= args.tile_size,
          patch_size= args.patch_size,
          stage_1_level = np.log2(10),
          stage_2_level = np.log2(5),
@@ -55,31 +62,30 @@ def get_models(args):
          device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     return attention, aoa, fe, clf, model
 
-def load_configuratiton(args):
+def load_configuratiton(model, args):
     config = dict()
-    config['model_dir'] = args.model_dir
     config['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    config['optimizer'] = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=0.0001, weight_decay=1e-5)
-    config['scheduler'] = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_steps, gamma=args.lr_decay_ratio)
+    config['model_name'] =args.model_name
+    config['optimizer'] = get_optim(model, args)
+    config['scheduler'] = torch.optim.lr_scheduler.StepLR(config['optimizer'], step_size=args.lr_decay_steps, gamma=args.lr_decay_ratio)
     config['criterion'] = nn.CrossEntropyLoss()
     config['num_epochs'] = args.num_epochs
-    config['eval_every_epochs'] = 1
-    config['eval_every'] = len(TrainingDataReader) * eval_every_epochs
-    config['save_path'] = args.save_path
+    config['eval_every_epochs'] = args.valid_step
+    config['save_path'] = args.output
     config['clip'] = args.clipnorm
-    config['training_show_every'] = len(TrainingDataReader) * 0.1
-    config['contrastive_learning'] = args.contrastive
+    config['contrastive_learning'] = args.contrastive_learning
     config['apply_con_epochs']  = args.apply_con_epochs
+    config['device'] = "cuda" if args.use_gpu else "cpu"
     return config
     
 def get_custom_dataset(args):
                                            
     train_at, valid_at, test_at =  load_annotations(args.dataset)
-    train_loader = CustomDataReader(dataset_dir, annotation_name=args.train_annotations,
+    train_loader = CustomDataReader(dataset_dir, annotation_name=train_at,
                                                   batch_size=args.batch_size, train=True)
-    valid_loader = CustomDataReader(dataset_dir, annotation_name='labels_histo_valid_fold_'+str(i+1)+'.csv',
+    valid_loader = CustomDataReader(dataset_dir, annotation_name=valid_at,
                                                     batch_size=1, train=False)
-    test_loader = CustomDataReader(dataset_dir, annotation_name='labels_histo_valid_fold_'+str(i+1)+'.csv',
+    test_loader = CustomDataReader(dataset_dir, annotation_name=test_at,
                                                 batch_size=1, train=False)
     return train_loader, valid_loader, test_loader
 
@@ -124,7 +130,12 @@ def main(argv):
         default=0.0001,
         help="Set the optimizer's learning rate"
     )
-                                           
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=1e-5,
+        help="Set the optimizer's weight_decay"
+    )                                           
     parser.add_argument(
         "--lr_decay_steps",
         type=int,
@@ -144,12 +155,19 @@ def main(argv):
         help=("Clip the gradient norm to avoid exploding gradients "
               "towards the end of convergence")
     )
-
+    
+    parser.add_argument(
+        "--tile_size",
+        type=lambda x: tuple(int(xi) for xi in x.split("x")),
+        default="250x250",
+        help="Choose the size of the first-level tile"
+    )
+    
     parser.add_argument(
         "--patch_size",
         type=lambda x: tuple(int(xi) for xi in x.split("x")),
         default="27x27",
-        help="Choose the size of the patch to extract from the high resolution"
+        help="Choose the size of the patch(sub-tile) to extract from the high resolution"
     )
 
     parser.add_argument(
@@ -168,7 +186,7 @@ def main(argv):
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=1,
+        default=5,
         help="Choose the batch size for SGD"
     )
     parser.add_argument(
@@ -184,24 +202,25 @@ def main(argv):
         help="Scale for downsampling images"
     )
     parser.add_argument(
-        "--contrastive_learning", default=False, action='store_true')
-
+        "--contrastive_learning", 
+        default=False, 
+        action='store_true')
+    
     parser.add_argument(
-        "--mode",
-        choices=['train', 'test'],
-        default='train',
-        help="train mode or test mode"
+        "--apply_con_epochs",
+        default=10,
+        help="when to apply contrastive learning"
+    )
+    
+    parser.add_argument(
+        "--num_classes",
+        default=2,
+        help="Number of classes of targets"
     )
     parser.add_argument(
         "--model_name",
         default=None,
-        help="the name of the testing model"
-    )
-    parser.add_argument(
-        "--see_attention",
-        type=lambda x: x == 'True',
-        default='True',
-        help="whether output a attention map"
+        help="the name of the training/testing model"
     )
     parser.add_argument(
         "--overlap",
@@ -210,7 +229,7 @@ def main(argv):
         help="Overlap for eliminating boundary effects"
     )
     parser.add_argument(
-        "--reg_coe",
+        "--reg_strength",
         type=float,
         default=0,
         help="whether regularize the coefficients for dynamic sampling"
@@ -225,7 +244,12 @@ def main(argv):
         default='best',
         help="load which model"
     )
-
+    
+    parser.add_argument(
+        "--use_gpu", 
+        default=True, 
+        action='store_true')
+    
     parser.add_argument(
         "--gpu",
         default=0
@@ -242,6 +266,7 @@ def main(argv):
         os.makedirs(args.output)
     
     if args.mode == "10CrossValidation":
+        
         total_cross = 10
         ten_cross_acc_list = []
         for i in range(total_cross):
@@ -249,20 +274,23 @@ def main(argv):
                                                   batch_size=args.batch_size, train=True)
             valid_loader = HistoPatchwiseReader(args.dataset, annotation_name='labels_histo_valid_fold_'+str(i+1)+'.csv',
                                                             batch_size=1, train=False)
-            model = get_models(args)
-            configs = load_configuratiton(args)
-            train_loss, train_acc, valid_loss, valid_acc = train(model, train_loader, valid_loader, configs, args)
+            _, _, _, _, model = get_models(args)
+            configs = load_configuratiton(model, args)
+            train_loss, train_acc, valid_loss, valid_acc = train(model, train_loader, valid_loader, configs)
             ten_cross_acc_list.append(valid_acc)
         print("Final 10 Cross Validation Results: ")
         print(ten_cross_acc_list)
         print("Average Accuracy: ", np.mean(ten_cross_acc_list))
     elif args.mode == "Training":
         train_loader, valid_loader, test_loader = get_custom_dataset(args)
+        _, _, _, _, model = get_models(args)
         train(model, train_loader, valid_loader, configs, args)
         eval(model, test_loader, configs, args)
     elif args.mode == "Evaluation":
         test_loader = HistoPatchwiseReader(args.dataset, annotation_name='labels_histo_valid_fold_'+str(i+1)+'.csv',
                                                             batch_size=1, train=False)
+        _, _, _, _, model = get_models(args)
+        load_checkpoint()
         eval(model, test_loader, configs, args)
         
 if __name__ == "__main__":

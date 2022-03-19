@@ -1,13 +1,27 @@
+import os
+import tqdm
+import time
 import torch
-from utils import save_checkpoint, load_checkpoint, save_metrics, load_metrics, get_activation
+import numpy as np
+from utils.utils import save_checkpoint, load_checkpoint, save_metrics, load_metrics, get_activation
 
 
 def train(model, train_loader, valid_loader, config):
     
     optimizer = config['optimizer']
     training_show_every = len(train_loader) * 0.1
-    eval_every = len(train_loader) * eval_every_epochs
-    
+    eval_every = len(train_loader) * config['eval_every_epochs']
+    device = config['device']
+    criterion = config['criterion']
+    num_epochs = config['num_epochs']
+    scheduler = config['scheduler']
+    global_step = 0
+    best_ACC = 0.0
+    train_acc_list = []
+    valid_acc_list = []
+    train_loss_list = []
+    valid_loss_list = []
+    global_steps_list = []
     for epoch in range(config['num_epochs']):
         sample_count = 0.0
         running_acc = 0.0
@@ -108,8 +122,8 @@ def train(model, train_loader, valid_loader, config):
                 valid_running_loss = 0.0
                 model.train()
                 # print progress
-                print('Iter [{}/{}], Epoch [{}/{}], Step [{}/{}], Train Loss: {:.4f}, Train Acc: {:.4f}, Valid Loss: {:.4f}, Valid Acc: {:.4f}'
-                      .format(i+1, total_cross,epoch+1, num_epochs, global_step, num_epochs*len(train_loader),
+                print('Epoch [{}/{}], Step [{}/{}], Train Loss: {:.4f}, Train Acc: {:.4f}, Valid Loss: {:.4f}, Valid Acc: {:.4f}'
+                      .format(epoch+1, num_epochs, global_step, num_epochs*len(train_loader),
                               average_train_loss, average_train_acc, average_valid_loss, average_valid_acc))
                 print("Max memory used: {} Mb ".format(torch.cuda.memory_allocated(device=0)/ (1024 * 1024)))
                 print("Average Time per sample {} sec".format(used_time/(valid_sample_count)))
@@ -117,8 +131,8 @@ def train(model, train_loader, valid_loader, config):
                 if best_ACC <= average_valid_acc:
                     best_ACC = average_valid_acc
                     save_checkpoint(os.path.join(config['save_path'], 
-                                                 'con_histo_cross_'+str(i+1)+'_test1.pt'), model, best_valid_loss)
-                    save_metrics(os.path.join(config['save_path'],'con_histo_cross_'+str(i+1)+'_test1_metrics.pt'),
+                                                 config['model_name'] + '.pt'), model, best_ACC)
+                    save_metrics(os.path.join(config['save_path'],config['model_name'] + '.pt'),
                                  train_loss_list,valid_loss_list, global_steps_list)
         scheduler.step()
     train_loss = train_loss_list[-1]
