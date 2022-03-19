@@ -8,11 +8,11 @@ Existing approaches have addressed these two challenges in isolation.
 We present an end-to-end CNN model termed Zoom-In network that leverages hierarchical attention sampling for classification of large images with tiny objects using a single GPU.
 We evaluate our method on four large-image histopathology, road-scene and satellite imaging datasets, and one gigapixel pathology dataset.
 Experimental results show that our model achieves higher accuracy than existing methods while requiring less memory resources.
-## Description
-This code file includes the training and evaluating scripts for all experiments described in the paper. 
 
 ## Major Dependencies
+
 pytorch-gpu == 1.6.0
+
 torchvision == 0.7.0 
 
 ## Training
