@@ -18,11 +18,11 @@ torchvision == 0.7.0
 ## Training
 training on colon cancer dataset:
 
-    python3 main.py /path_to_your_dataset/ /path_to_your_output/ --mode 10CrossValidation
+    python main.py /path_to_your_dataset/ /path_to_your_output/ --mode 10CrossValidation --model_name yourModelName
     
 ## Evaluation
 
-    python3 main.py /path_to_your_dataset/ /path_to_your_output/ --mode Evaluation --load_model /model_name/
+    python main.py /path_to_your_dataset/ /path_to_your_model_directory/ --mode Evaluation --model_name yourModelName
     
 ## Acknowledgemennt
 This work was supported by NIH (R44-HL140794), DARPA (FA8650-18-2-7832-P00009-12) and ONR (N00014-18-1-2871-P00002-3).
