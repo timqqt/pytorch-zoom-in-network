@@ -27,5 +27,7 @@ training on colon cancer dataset:
     python3 main.py --mode Evaluation
     
 ## Acknowledgemennt
+This work was supported by NIH (R44-HL140794), DARPA (FA8650-18-2-7832-P00009-12) and ONR (N00014-18-1-2871-P00002-3).
+
 ##### Thanks to the following repositories: 
 - https://github.com/idiap/attention-sampling.git
