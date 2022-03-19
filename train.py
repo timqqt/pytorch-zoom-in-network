@@ -1,36 +1,14 @@
-def train(model, train_loader, valid_loader):
-    model_dir = '/hpc/group/carin/fk43/FanjieKong/Megapixels/PytorchATS/new_histo_test_1/'
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    #optimizer = torch.optim.SGD(model.parameters(), lr=0.0002, momentum=0.9)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.8)
-    #criterion = nn.BCELoss ()
-    criterion = nn.CrossEntropyLoss()
-    num_epochs = 100
-    eval_every_epochs = 1
-    eval_every = len(TrainingDataReader) * eval_every_epochs
-    file_path = model_dir
-    saved_path = model_dir
-    best_valid_loss = float("Inf")
-    training_show_every = len(TrainingDataReader) * 0.1
-    clip = 5.0
-    sample_count = 0.0
-    running_acc = 0.0
-    running_loss = 0.0
-    valid_running_acc = 0.0
-    valid_running_loss = 0.0
-    global_step = 0
-    best_ACC = 0
-    train_acc_list = []
-    valid_acc_list = []
-    train_loss_list = []
-    valid_loss_list = []
-    global_steps_list = []
+import torch
+from utils import save_checkpoint, load_checkpoint, save_metrics, load_metrics, get_activation
+
+
+def train(model, train_loader, valid_loader, config):
     
-    contrastive_learning = True
-    apply_con_epochs = 10
+    optimizer = config['optimizer']
+    training_show_every = len(train_loader) * 0.1
+    eval_every = len(train_loader) * eval_every_epochs
     
-    for epoch in range(num_epochs):
+    for epoch in range(config['num_epochs']):
         sample_count = 0.0
         running_acc = 0.0
         running_loss = 0.0
@@ -39,7 +17,7 @@ def train(model, train_loader, valid_loader):
             train_input_reader = [e_reader for e_reader, _ in train_batch]
             labels = torch.stack([torch.Tensor([e_label]) for _, e_label in train_batch]).squeeze(1)
             labels = labels.type(torch.LongTensor).to(device)
-            if contrastive_learning and epoch >= apply_con_epochs and torch.sum(labels) > 0:
+            if config['contrastive_learning'] and epoch >= config['apply_con_epochs'] and torch.sum(labels) > 0:
 
                 pos_reader = np.array(train_input_reader)[labels.data.cpu().numpy() == 1]
                 pos_output, pos_sparse_loss = model(pos_reader)
@@ -70,14 +48,12 @@ def train(model, train_loader, valid_loader):
                 output, sparse_loss = model(train_input_reader)
                 loss = criterion(output, labels) + sparse_loss
             
-            #loss = criterion(sigfunc(output), labels) + sparse_loss
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm(model.parameters(), clip)
+            torch.nn.utils.clip_grad_norm(model.parameters(), config['clip'])
             optimizer.step()
 
             # update running values
-            #pred_labels = np.where(output.data.cpu() > 0.5, 1, 0)
             _, pred_labels = output.data.cpu().topk(1, dim=1)
 
             running_acc += torch.sum(pred_labels.t().squeeze() == labels.data.cpu().squeeze()).item()
@@ -96,7 +72,6 @@ def train(model, train_loader, valid_loader):
             if global_step % eval_every == 0:
                 model.eval()
                 with torch.no_grad():                    
-
                     # validation loop
                     print("Begin Validation")
                     valid_sample_count = 0.0
@@ -113,7 +88,6 @@ def train(model, train_loader, valid_loader):
                         loss = criterion(output, labels)
 
                         valid_running_loss += loss.item()
-                        #pred_labels = np.where(output.data.cpu() > 0.5, 1, 0)
                         _, pred_labels = output.data.cpu().topk(1, dim=1)
                         valid_running_acc += torch.sum(pred_labels.t().squeeze() == labels.data.cpu().squeeze()).item()
                         valid_sample_count += labels.shape[0]
@@ -142,14 +116,13 @@ def train(model, train_loader, valid_loader):
                 # checkpoint
                 if best_ACC <= average_valid_acc:
                     best_ACC = average_valid_acc
-                    save_checkpoint(os.path.join(saved_path, 'con_histo_cross_'+str(i+1)+'_test1.pt'), model, best_valid_loss)
-                    save_metrics(os.path.join(saved_path, 'con_histo_cross_'+str(i+1)+'_test1_metrics.pt'), train_loss_list, valid_loss_list, global_steps_list)
-            # reinit
+                    save_checkpoint(os.path.join(config['save_path'], 
+                                                 'con_histo_cross_'+str(i+1)+'_test1.pt'), model, best_valid_loss)
+                    save_metrics(os.path.join(config['save_path'],'con_histo_cross_'+str(i+1)+'_test1_metrics.pt'),
+                                 train_loss_list,valid_loss_list, global_steps_list)
         scheduler.step()
-    save_metrics(os.path.join(saved_path, 'con_histo_cross_'+str(i+1)+'_test1_metrics.pt'), train_loss_list, valid_loss_list, global_steps_list)
-    print('Finished Training Cross ', str(i+1))
-    ten_cross_acc_list.append(best_ACC)
-
-print("Final 10 Cross Validation Results: ")
-print(ten_cross_acc_list)
-print(np.mean(ten_cross_acc_list))
+    train_loss = train_loss_list[-1]
+    train_acc = train_acc_list[-1]
+    valid_loss = valid_loss_list[-1]
+    valid_acc = best_ACC
+    return train_loss, train_acc, valid_loss, valid_acc
