@@ -28,11 +28,8 @@ training on colon cancer dataset:
 This work was supported by NIH (R44-HL140794), DARPA (FA8650-18-2-7832-P00009-12) and ONR (N00014-18-1-2871-P00002-3).
 
 ## Research
----------
 
 If you would like to cite our work,
-
-.. code::
 
     @article{kong2021efficient,
       title={Efficient Classification of Very Large Images with Tiny Objects},
