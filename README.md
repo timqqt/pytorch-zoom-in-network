@@ -20,10 +20,12 @@ torchvision == 0.7.0
 ## Training
 training on colon cancer dataset:
 
-    python3 main.py
+    python3 main.py --mode 10CrossValidation
     
 ## Evaluation
 
+    python3 main.py --mode Evaluation
+    
 ## Acknowledgemennt
 ##### Thanks to the following repositories: 
 - https://github.com/idiap/attention-sampling.git
