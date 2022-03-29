@@ -173,7 +173,7 @@ def main(argv):
     parser.add_argument(
         "--n_patches",
         type=int,
-        default=50,
+        default=10,
         help="How many patches to sample"
     )
     parser.add_argument(
@@ -208,6 +208,7 @@ def main(argv):
     
     parser.add_argument(
         "--apply_con_epochs",
+        type=int,
         default=10,
         help="when to apply contrastive learning"
     )
