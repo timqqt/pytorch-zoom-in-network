@@ -31,11 +31,12 @@ This work was supported by NIH (R44-HL140794), DARPA (FA8650-18-2-7832-P00009-12
 
 If you would like to cite our work,
 
-    @article{kong2021efficient,
+    @inproceedings{kong2022efficient,
       title={Efficient Classification of Very Large Images with Tiny Objects},
       author={Kong, Fanjie and Henao, Ricardo},
-      journal={arXiv preprint arXiv:2106.02694},
-      year={2021}
+      booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+      pages={2384--2394},
+      year={2022}
     }
     
 ##### Thanks to the following repositories inpired our work: 
